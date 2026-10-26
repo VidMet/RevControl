@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BIM Revisjons- og Endringskontroll v1.2</title>
+  <title>BIM Revisjons- og Endringskontroll v1.3</title>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
     :root {
@@ -61,16 +61,23 @@
 
     /* ACTION & FILTER BARS */
     .bar {
-      display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+      display: flex; align-items: center; gap: 10px; padding: 8px 14px;
       background: var(--card); border-bottom: 1px solid var(--border); flex-wrap: wrap; flex-shrink: 0;
     }
     .field-group { display: flex; flex-direction: column; gap: 3px; }
     .field-group label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.4px; }
     select, input[type="number"], input[type="text"] {
       padding: 6px 9px; border: 1px solid var(--border); border-radius: 5px;
-      font-size: 12px; background: #fff; color: var(--text); min-width: 150px;
+      font-size: 12px; background: #fff; color: var(--text); min-width: 145px;
     }
-    input[type="number"] { min-width: 72px; width: 78px; }
+    input[type="number"] { min-width: 68px; width: 74px; }
+
+    .chk-pill {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+      background: #f8fafc; border: 1px solid var(--border); padding: 5px 9px;
+      border-radius: 6px; cursor: pointer; user-select: none;
+    }
+    .chk-pill:hover { background: #f1f5f9; }
 
     button {
       padding: 7px 12px; border-radius: 5px; border: 1px solid var(--border);
@@ -193,8 +200,8 @@
         <img src="norconsult-logo-black.png" alt="Norconsult" onerror="this.style.display='none'; this.parentElement.innerHTML='<b>NORCONSULT</b>'" />
       </div>
       <div class="app-title">
-        <b>BIM Revisjons- og Endringskontroll <span class="version-badge">v1.2</span></b>
-        <span>Geometrisk objekt-matching på tvers av utskiftede GUID-er (ignorerer revisjonsegenskaper)</span>
+        <b>BIM Revisjons- og Endringskontroll <span class="version-badge">v1.3</span></b>
+        <span>Geometrisk & egenskapsbasert objekt-matching (håndterer flyttet modell, ekskluderer Revisjon og MMI)</span>
       </div>
     </div>
     <div class="status-pill">
@@ -219,23 +226,28 @@
       <select id="selNewModel"><option value="">-- Trykk Hent modeller --</option></select>
     </div>
 
-    <div class="field-group" title="Maks avvik i senterpunkt og dimensjoner (mm) for at et objekt regnes som geometrisk uendret">
-      <label for="inpExactTol">Eksakt-toleranse (mm)</label>
-      <input type="number" id="inpExactTol" value="10" min="1" max="500" />
+    <div class="field-group" title="Maks avvik i dimensjoner/størrelse (mm) for at et objekt regnes som geometrisk uendret">
+      <label for="inpExactTol">Form-toleranse (mm)</label>
+      <input type="number" id="inpExactTol" value="15" min="1" max="2000" />
     </div>
 
-    <div class="field-group" title="Maks søkeradius (meter) for å koble sammen objekter som har endret geometri/lengde">
-      <label for="inpSearchRad">Søk-radius endret (m)</label>
-      <input type="number" id="inpSearchRad" value="2.5" step="0.5" min="0.1" max="50" />
-    </div>
+    <label class="chk-pill" title="Når påslått: Hvis modellen/objektet har flyttet seg, men 3D-dimensjonene (størrelsen) og påførte egenskaper er like, tolkes objektet som UENDRET.">
+      <input type="checkbox" id="chkIgnoreMove" checked />
+      <span>Ignorer ren flytting (match på form & egenskaper)</span>
+    </label>
 
-    <button id="btnRunDiff" class="primary" onclick="runGeometricDiff()" disabled>▶ 2. Kjør Geometrisk Sammenligning</button>
+    <label class="chk-pill" title="Ignorerer automatisk kalkulerte koordinat-/volumegenskaper (som CenterOfGravityX/Y/Z) når modellen har flyttet seg, slik at kun påførte egenskaper avgjør om et objekt har endret egenskaper.">
+      <input type="checkbox" id="chkIgnoreCalcProps" checked />
+      <span>Ignorer kalkulerte koordinat-egenskaper</span>
+    </label>
+
+    <button id="btnRunDiff" class="primary" onclick="runGeometricDiff()" disabled>▶ 2. Kjør Sammenligning</button>
   </div>
 
   <!-- BAR 2: 3D-VISNINGSMODUSER & SPLIT SCREEN -->
   <div class="bar" style="background:#f8fafc;">
     <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase;">3D-Visning:</span>
-    <button id="btnSmart3D" onclick="applySmart3DView()" disabled title="Skjuler duplikater fra Gammel modell, fargelegger Nye (Grønn), Endrede (Gul/Blå) og viser Slettede (Rød)">🎨 Smart Endringsvisning i 3D</button>
+    <button id="btnSmart3D" onclick="applySmart3DView()" disabled title="Skjuler matchede objekter fra Gammel modell, fargelegger Nye (Grønn), Endrede (Gul/Blå) og viser Slettede (Rød)">🎨 Smart Endringsvisning i 3D</button>
     <button id="btnBlink" onclick="toggleBlinkMode()" disabled title="Veksler lynraskt mellom kun Gammel modell og kun Ny modell i 3D">🔀 Veksle: <span id="blinkLabel">Gammel ↔ Ny</span></button>
     <button id="btnSplitScreen" onclick="toggleSplitPanel()" disabled>🪟 Split-Screen (Geometrisk Boks-Diff)</button>
     <button id="btnReset3D" onclick="reset3DView()" disabled>↺ Nullstill 3D</button>
@@ -256,19 +268,19 @@
       <div class="sub">Totalt analysert</div>
     </div>
     <div class="stat-card" id="card-UNCHANGED" onclick="setCategoryFilter('UNCHANGED')">
-      <div class="lbl"><span style="color:var(--unchanged)">🟢 UENDRET (NY GUID)</span></div>
+      <div class="lbl"><span style="color:var(--unchanged)">🟢 UENDRET (LIK)</span></div>
       <div class="val" id="count-UNCHANGED">0</div>
-      <div class="sub">Lik geometri & egenskaper</div>
+      <div class="sub">Lik form & påførte egensk.</div>
     </div>
     <div class="stat-card" id="card-MOD_GEOM" onclick="setCategoryFilter('MOD_GEOM')">
       <div class="lbl"><span style="color:var(--geom)">🟡 ENDRET GEOMETRI</span></div>
       <div class="val" id="count-MOD_GEOM">0</div>
-      <div class="sub">Endret form / posisjon</div>
+      <div class="sub">Endret form / størrelse</div>
     </div>
     <div class="stat-card" id="card-MOD_PROP" onclick="setCategoryFilter('MOD_PROP')">
       <div class="lbl"><span style="color:var(--prop)">🔵 ENDREDE EGENSKAPER</span></div>
       <div class="val" id="count-MOD_PROP">0</div>
-      <div class="sub">Lik 3D, ny metadata</div>
+      <div class="sub">Lik form, ny metadata</div>
     </div>
     <div class="stat-card" id="card-ADDED" onclick="setCategoryFilter('ADDED')">
       <div class="lbl"><span style="color:var(--added)">🟣 NYE OBJEKTER</span></div>
@@ -311,7 +323,7 @@
     <div class="table-card">
       <div class="table-toolbar">
         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <input type="text" id="inpSearch" placeholder="🔍 Søk på navn, objekttype, prosesskode, egenskap eller GUID..." style="min-width:300px;" oninput="renderTable()" />
+          <input type="text" id="inpSearch" placeholder="🔍 Søk på navn (f.eks. Slitelag), objekttype, prosesskode, egenskap eller GUID..." style="min-width:340px;" oninput="renderTable()" />
           <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
             <input type="checkbox" id="chkOnlyNewGuids" onchange="renderTable()" /> Kun objekter som har byttet GUID
           </label>
@@ -323,17 +335,17 @@
           <thead>
             <tr>
               <th>Status</th>
-              <th>Objektnavn / Type</th>
+              <th>Objektnavn / Delobjekt</th>
               <th>IFC-Klasse</th>
               <th>GUID-bro (Gammel ➔ Ny)</th>
               <th>Geometrisk avvik (ΔPos / ΔStørrelse)</th>
-              <th>Egenskapsendringer / Detaljer</th>
+              <th>Egenskapsendringer (ekskl. Revisjon & MMI)</th>
             </tr>
           </thead>
           <tbody id="diffTableBody">
             <tr>
               <td colspan="6" style="text-align:center; padding:30px; color:var(--muted);">
-                Velg <b>Gammel modell</b> og <b>Ny modell</b> øverst, og trykk på <b>▶ 2. Kjør Geometrisk Sammenligning</b>.
+                Velg <b>Gammel modell</b> og <b>Ny modell</b> øverst, og trykk på <b>▶ 2. Kjør Sammenligning</b>.
               </td>
             </tr>
           </tbody>
@@ -355,10 +367,10 @@
     "IFCPROJECT", "IFCBUILDING", "IFCBUILDINGSTOREY", "IFCSPACE", "IFCOPENINGELEMENT"
   ]);
 
-  // Viktige egenskaper vi prioriterer øverst i visningen
+  // Viktige påførte egenskaper som prioriteres ved matching og visning
   const KEY_PROPS = [
-    "NAME", "OBJEKTTYPE", "OBJECTTYPE", "PROSESSKODE", "PROSESS", "PNS KODE", "PNS",
-    "MMI", "MATERIALE", "MATERIAL", "UNDERDISIPLIN", "BRUKSSTATUS", "BESKRIVELSE", "DESCRIPTION"
+    "DELOBJEKT", "OBJEKTTYPE", "OBJECTTYPE", "PROSESSKODE", "PROSESS", "PNS KODE", "PNS",
+    "MATERIALE", "MATERIAL", "UNDERDISIPLIN", "BRUKSSTATUS", "BESKRIVELSE", "DESCRIPTION", "LAG", "SJIKT"
   ];
 
   function escapeHTML(str) {
@@ -369,12 +381,38 @@
       .replace(/"/g, "&quot;");
   }
 
-  // Sjekker om en egenskap skal ekskluderes fra sammenligningen (alt som inneholder "revisjon" eller "revision")
-  function isIgnoredPropertyKey(keyUpper) {
+  // Sjekker om en egenskap skal ekskluderes fra sammenligningen:
+  // 1) Alt som inneholder REVISJON, REVISION eller MMI
+  // 2) Globale ID-er og filnavn-prefikser (som endres når filen får nytt navn)
+  // 3) Valgfritt: Kalkulerte koordinat-/boks-egenskaper (som CenterOfGravityX/Y/Z) når modellen har flyttet seg
+  function isIgnoredPropertyKey(keyUpper, ignoreCalcProps = true) {
     if (!keyUpper) return true;
-    if (keyUpper === "GLOBALID" || keyUpper === "GUID") return true;
+    if (keyUpper === "GLOBALID" || keyUpper === "GUID" || keyUpper === "NAME") return true;
     if (keyUpper.includes("REVISJON") || keyUpper.includes("REVISION")) return true;
+    if (keyUpper === "MMI" || keyUpper.includes("MMI-") || keyUpper.includes("MMI_") || keyUpper.includes("MODELLMODENHET")) return true;
+
+    if (ignoreCalcProps) {
+      if (
+        keyUpper.includes("CENTEROFGRAVITY") ||
+        keyUpper.includes("TYNGDEPUNKT") ||
+        keyUpper.includes("BOUNDINGBOX") ||
+        keyUpper.includes("GLOBALX") ||
+        keyUpper.includes("GLOBALY") ||
+        keyUpper.includes("GLOBALZ")
+      ) {
+        return true;
+      }
+    }
     return false;
+  }
+
+  // Trekker ut "Delobjekt"-navnet (f.eks. "Slitelag" fra "p7-sv_f-veg_20000 | Slitelag")
+  function extractSubName(fullName) {
+    const s = String(fullName || "").trim();
+    if (s.includes("|")) {
+      return s.split("|").pop().trim();
+    }
+    return s;
   }
 
   // --- STATUS & PROGRESS ---
@@ -417,7 +455,6 @@
     try {
       const nameMap = {};
 
-      // 1) Prøv API.models.getModels()
       try {
         if (API.models && typeof API.models.getModels === "function") {
           const mList = await API.models.getModels();
@@ -429,7 +466,6 @@
         }
       } catch (e) { console.warn("API.models.getModels feilet:", e); }
 
-      // 2) Prøv API.viewer.getModels()
       try {
         if (API.viewer && typeof API.viewer.getModels === "function") {
           const viewerModels = await API.viewer.getModels() || [];
@@ -441,7 +477,6 @@
         }
       } catch (e) { console.warn("API.viewer.getModels feilet:", e); }
 
-      // 3) Hent objekthierarkiet fra vieweren
       const objTrees = await API.viewer.getObjects() || [];
       availableModels = [];
 
@@ -549,7 +584,11 @@
           const dict = {};
           let guid = p.globalId || p.guid || p.externalId || "";
           let cls = String(p.type || p.class || p.ifcType || "").toUpperCase();
-          if (p.name) dict["NAME"] = String(p.name).trim();
+          if (p.name) {
+            dict["NAME"] = String(p.name).trim();
+            const sub = extractSubName(p.name);
+            if (sub) dict["DELOBJEKT"] = sub;
+          }
 
           if (Array.isArray(p.properties)) {
             for (const pset of p.properties) {
@@ -562,7 +601,6 @@
                   guid = guid || v;
                   continue;
                 }
-                if (isIgnoredPropertyKey(k)) continue;
                 dict[k] = v;
               }
             }
@@ -606,7 +644,7 @@
       }
     }
 
-    // 2C. Klatre oppover kun for å arve manglende egenskaper (MEN IKKE ta med foreldre-ID i targetIds!)
+    // 2C. Arv egenskaper fra foreldre uten å ta med foreldre-ID i targetIds
     function getInheritedData(rid) {
       const mergedProps = {};
       let guid = "";
@@ -623,23 +661,29 @@
           if (!ifcClass && node.ifcClass && !IGNORE_CLASSES.has(node.ifcClass)) ifcClass = node.ifcClass;
         }
         if (rp) {
-          // Kun bruk forelderens GUID hvis barnet er en ren geometrinode uten egen GUID
           if (!guid && rp.guid && depth <= 1) guid = rp.guid;
           if (!ifcClass && rp.ifcClass && !IGNORE_CLASSES.has(rp.ifcClass)) ifcClass = rp.ifcClass;
-          // Ikke arv NAME fra selve topp/modell-rotnoden hvis objektet allerede har navn
           for (const [k, v] of Object.entries(rp.props)) {
-            if (k === "NAME" && depth > 1) continue;
+            if ((k === "NAME" || k === "DELOBJEKT") && depth > 1) continue;
             if (mergedProps[k] === undefined && v !== "") mergedProps[k] = v;
           }
         }
         curr = parentMap.get(curr);
         depth++;
       }
-      if (name && !mergedProps["NAME"]) mergedProps["NAME"] = name;
-      return { guid: guid || `RID-${rid}`, ifcClass: ifcClass || "IFCELEMENT", name: mergedProps["NAME"] || `Objekt #${rid}`, props: mergedProps };
+      const finalName = name || mergedProps["NAME"] || `Objekt #${rid}`;
+      const subName = extractSubName(finalName);
+      if (subName && !mergedProps["DELOBJEKT"]) mergedProps["DELOBJEKT"] = subName;
+
+      return {
+        guid: guid || `RID-${rid}`,
+        ifcClass: ifcClass || "IFCELEMENT",
+        name: finalName,
+        subName: subName || finalName,
+        props: mergedProps
+      };
     }
 
-    // Viktig: Samle kun selve objektet og dets egne under-geometrinoder (aldri foreldre/modell-rot!)
     function collectOwnAndChildIds(rid) {
       const result = [rid];
       const stack = [rid];
@@ -658,7 +702,6 @@
 
     const physicalObjects = [];
     for (const [rid, node] of nodeMap.entries()) {
-      // Hopp over øverste rotnode (selve fil-containeren) så vi aldri skjuler/markerer hele modellen under ett
       if (!parentMap.has(rid) && node.hasChildren) continue;
       if (IGNORE_CLASSES.has(node.ifcClass)) continue;
 
@@ -689,6 +732,7 @@
         targetIds: collectOwnAndChildIds(rid),
         guid: inherited.guid,
         name: inherited.name,
+        subName: inherited.subName,
         ifcClass: inherited.ifcClass,
         props: inherited.props,
         bbox: { min, max },
@@ -701,7 +745,7 @@
     return physicalObjects;
   }
 
-  // --- 3. KJØR GEOMETRISK SAMMENLIGNING (3-TRINNS TRAKT) ---
+  // --- 3. KJØR GEOMETRISK & EGENSKAPSBASERT SAMMENLIGNING ---
   async function runGeometricDiff() {
     const oldModelId = document.getElementById("selOldModel").value;
     const newModelId = document.getElementById("selNewModel").value;
@@ -713,8 +757,9 @@
       if (!confirm("Du har valgt samme modell som både Gammel og Ny. Vil du fortsette likevel?")) return;
     }
 
-    const exactTolMeters = (parseFloat(document.getElementById("inpExactTol").value) || 10) / 1000.0;
-    const searchRadMeters = parseFloat(document.getElementById("inpSearchRad").value) || 2.5;
+    const exactTolMeters = (parseFloat(document.getElementById("inpExactTol").value) || 15) / 1000.0;
+    const ignoreMove = document.getElementById("chkIgnoreMove").checked;
+    const ignoreCalcProps = document.getElementById("chkIgnoreCalcProps").checked;
 
     document.getElementById("btnRunDiff").disabled = true;
     selectedRowIdx = -1;
@@ -725,7 +770,7 @@
       const newObjs = await scanModelData(newModelId, 48, 45, "Ny modell");
 
       setProgress(95);
-      setStatus("Sammenligner geometriske fingeravtrykk...", "warn");
+      setStatus("Sammenligner objekter (form, posisjon og påførte egenskaper)...", "warn");
       await sleep(20);
 
       const usedOld = new Set();
@@ -735,11 +780,12 @@
       const dist3D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
       const dimDiff = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z));
 
+      // Sammenlign påførte egenskaper mellom Gammel og Ny (ekskl. Revisjon, MMI og evt. kalkulerte koordinater)
       function compareProperties(o1, o2) {
         const changes = [];
         const allKeys = new Set([...Object.keys(o1.props), ...Object.keys(o2.props)]);
         for (const k of allKeys) {
-          if (isIgnoredPropertyKey(k)) continue;
+          if (isIgnoredPropertyKey(k, ignoreCalcProps)) continue;
           const v1 = o1.props[k] || "";
           const v2 = o2.props[k] || "";
           if (v1 !== v2) {
@@ -755,7 +801,22 @@
         return changes;
       }
 
-      // STEG 1: Eksakt Geometrisk & Romlig match (uavhengig av GUID)
+      // Hjelpefunksjon: Regn ut hvor sterk faglig identitet to objekter deler (Delobjekt/Slitelag, Prosesskode, Objekttype, Materiale)
+      function identitySimilarity(oObj, nObj) {
+        let matches = 0;
+        if (oObj.subName && nObj.subName && oObj.subName.toLocaleUpperCase('nb-NO') === nObj.subName.toLocaleUpperCase('nb-NO')) {
+          matches += 3;
+        }
+        const checkKeys = ["OBJEKTTYPE", "OBJECTTYPE", "PROSESSKODE", "PROSESS", "PNS KODE", "MATERIALE", "MATERIAL", "UNDERDISIPLIN"];
+        for (const k of checkKeys) {
+          const v1 = oObj.props[k];
+          const v2 = nObj.props[k];
+          if (v1 && v2 && v1 === v2) matches += 2;
+        }
+        return matches;
+      }
+
+      // STEG 1A: Eksakt plassering OG eksakt form (innenfor toleranse)
       for (let j = 0; j < newObjs.length; j++) {
         const nObj = newObjs[j];
         let bestOldIdx = -1;
@@ -772,8 +833,53 @@
           const dDiff = dimDiff(oObj.dims, nObj.dims);
           if (dDiff > exactTolMeters) continue;
 
-          const sameNamePenalty = (oObj.name === nObj.name) ? 0 : 0.002;
-          const score = cDist + dDiff + sameNamePenalty;
+          const idSim = identitySimilarity(oObj, nObj);
+          const score = cDist + dDiff - (idSim * 0.005);
+          if (score < bestScore) {
+            bestScore = score;
+            bestOldIdx = i;
+          }
+        }
+
+        if (bestOldIdx !== -1) {
+          usedOld.add(bestOldIdx);
+          usedNew.add(j);
+          const oObj = oldObjs[bestOldIdx];
+          const propChanges = compareProperties(oObj, nObj);
+          diffResults.push({
+            status: propChanges.length === 0 ? "UNCHANGED" : "MOD_PROP",
+            oldObj: oObj,
+            newObj: nObj,
+            guidChanged: oObj.guid !== nObj.guid,
+            cDistMm: Math.round(dist3D(oObj.center, nObj.center) * 1000),
+            dDiffMm: Math.round(dimDiff(oObj.dims, nObj.dims) * 1000),
+            propChanges
+          });
+        }
+      }
+
+      // STEG 1B: Modell/objekt har FLYTTET seg, men har LIK 3D-størrelse (innenfor form-toleranse) og lik identitet (f.eks. Slitelag)
+      for (let j = 0; j < newObjs.length; j++) {
+        if (usedNew.has(j)) continue;
+        const nObj = newObjs[j];
+        let bestOldIdx = -1;
+        let bestScore = Infinity;
+
+        for (let i = 0; i < oldObjs.length; i++) {
+          if (usedOld.has(i)) continue;
+          const oObj = oldObjs[i];
+          if (oObj.ifcClass !== nObj.ifcClass) continue;
+
+          const dDiff = dimDiff(oObj.dims, nObj.dims);
+          if (dDiff > exactTolMeters) continue;
+
+          const idSim = identitySimilarity(oObj, nObj);
+          const propChanges = compareProperties(oObj, nObj);
+          // Krev at de enten har likt Delobjekt/Navn (f.eks. Slitelag) eller 0 endringer i påførte egenskaper
+          if (idSim === 0 && propChanges.length > 0) continue;
+
+          const cDist = dist3D(oObj.center, nObj.center);
+          const score = dDiff * 100 + propChanges.length * 10 - idSim * 5 + cDist * 0.001;
           if (score < bestScore) {
             bestScore = score;
             bestOldIdx = i;
@@ -788,8 +894,13 @@
           const cDistMm = Math.round(dist3D(oObj.center, nObj.center) * 1000);
           const dDiffMm = Math.round(dimDiff(oObj.dims, nObj.dims) * 1000);
 
+          let status = "MOD_GEOM";
+          if (ignoreMove) {
+            status = propChanges.length === 0 ? "UNCHANGED" : "MOD_PROP";
+          }
+
           diffResults.push({
-            status: propChanges.length === 0 ? "UNCHANGED" : "MOD_PROP",
+            status,
             oldObj: oObj,
             newObj: nObj,
             guidChanged: oObj.guid !== nObj.guid,
@@ -800,7 +911,7 @@
         }
       }
 
-      // STEG 2: Modifisert Geometri
+      // STEG 2: Samme objekt-identitet (f.eks. Slitelag -> Slitelag), men både posisjon og form/størrelse er endret
       for (let j = 0; j < newObjs.length; j++) {
         if (usedNew.has(j)) continue;
         const nObj = newObjs[j];
@@ -812,25 +923,15 @@
           const oObj = oldObjs[i];
           if (oObj.ifcClass !== nObj.ifcClass) continue;
 
-          const cDist = dist3D(oObj.center, nObj.center);
-          const overlaps = (
-            oObj.bbox.min.x <= nObj.bbox.max.x && oObj.bbox.max.x >= nObj.bbox.min.x &&
-            oObj.bbox.min.y <= nObj.bbox.max.y && oObj.bbox.max.y >= nObj.bbox.min.y &&
-            oObj.bbox.min.z <= nObj.bbox.max.z && oObj.bbox.max.z >= nObj.bbox.min.z
-          );
-
-          if (cDist > searchRadMeters && !overlaps) continue;
-
-          const sameName = (oObj.name && oObj.name === nObj.name);
-          const sameType = (oObj.props["OBJEKTTYPE"] && oObj.props["OBJEKTTYPE"] === nObj.props["OBJEKTTYPE"]);
+          const idSim = identitySimilarity(oObj, nObj);
           const sameGuid = (oObj.guid && oObj.guid === nObj.guid);
-
-          if (!sameGuid && !sameName && !sameType && cDist > searchRadMeters * 0.5) continue;
+          if (!sameGuid && idSim < 3) continue; // Må ha minst samme Delobjekt-navn eller nøkkelegenskaper
 
           const dDiff = dimDiff(oObj.dims, nObj.dims);
-          const bonus = (sameGuid ? -5 : 0) + (sameName ? -1.5 : 0) + (sameType ? -1.0 : 0);
-          const score = cDist + dDiff * 0.5 + bonus;
+          const cDist = dist3D(oObj.center, nObj.center);
+          const propChanges = compareProperties(oObj, nObj);
 
+          const score = dDiff + cDist * 0.1 + propChanges.length * 2 - idSim * 5 - (sameGuid ? 50 : 0);
           if (score < bestScore) {
             bestScore = score;
             bestOldIdx = i;
@@ -857,7 +958,7 @@
         }
       }
 
-      // STEG 3: Nye objekter
+      // STEG 3: Nye objekter (Kun i ny modell)
       for (let j = 0; j < newObjs.length; j++) {
         if (usedNew.has(j)) continue;
         diffResults.push({
@@ -871,7 +972,7 @@
         });
       }
 
-      // STEG 4: Slettede objekter
+      // STEG 4: Slettede objekter (Kun i gammel modell)
       for (let i = 0; i < oldObjs.length; i++) {
         if (usedOld.has(i)) continue;
         diffResults.push({
@@ -900,7 +1001,7 @@
       setProgress(-1);
       setStatus(`Analyse fullført: ${diffResults.length} objekter sammenlignet`, "live");
     } catch (err) {
-      console.error("Feil under geometrisk diff:", err);
+      console.error("Feil under sammenligning:", err);
       setProgress(-1);
       setStatus("Feil under analyse: " + err.message, "error");
     } finally {
@@ -908,7 +1009,7 @@
     }
   }
 
-  // --- 4. OPPDATER TELLERE & TABELL (MED UTVIDBARE EGENSKAPER) ---
+  // --- 4. OPPDATER TELLERE & TABELL ---
   function updateSummaryCounts() {
     const counts = { ALL: diffResults.length, UNCHANGED: 0, MOD_GEOM: 0, MOD_PROP: 0, ADDED: 0, DELETED: 0 };
     for (const r of diffResults) {
@@ -951,7 +1052,6 @@
     });
   }
 
-  // Åpne/lukke "+X andre egenskaper" uten å trigge rad-klikk i 3D
   function toggleExtraProps(ev, globalIdx, extraCount) {
     ev.stopPropagation();
     const box = document.getElementById(`extra-props-${globalIdx}`);
@@ -997,12 +1097,14 @@
 
       let geomText = "—";
       if (r.oldObj && r.newObj) {
-        geomText = `ΔPos: <b>${r.cDistMm} mm</b> | ΔDim: <b>${r.dDiffMm} mm</b>`;
+        const posStr = r.cDistMm >= 1000 ? `${(r.cDistMm / 1000).toFixed(2)} m` : `${r.cDistMm} mm`;
+        const dimStr = r.dDiffMm >= 1000 ? `${(r.dDiffMm / 1000).toFixed(2)} m` : `${r.dDiffMm} mm`;
+        geomText = `ΔPos: <b>${posStr}</b> | ΔStørrelse: <b>${dimStr}</b>`;
       }
 
       let propText = "";
       if (r.status === "UNCHANGED") {
-        propText = `<span style="color:var(--muted)">100 % geometrisk og tekstlig match</span>`;
+        propText = `<span style="color:var(--muted)">Lik form og like påførte egenskaper${r.cDistMm > 20 ? ` (flyttet ${(r.cDistMm / 1000).toFixed(2)} m)` : ""}</span>`;
       } else if (r.status === "ADDED") {
         propText = `<span style="color:var(--added)">Tilføyd i ny modell</span>`;
       } else if (r.status === "DELETED") {
@@ -1027,7 +1129,7 @@
             </div>`;
         }
       } else {
-        propText = `Geometri endret uten tekstendring`;
+        propText = `Endret utstrekning/størrelse (alle påførte egenskaper er like)`;
       }
 
       const rowClass = globalIdx === selectedRowIdx ? "selected-row" : "";
@@ -1073,7 +1175,7 @@
     const oldModelId = document.getElementById("selOldModel").value;
     const newModelId = document.getElementById("selNewModel").value;
 
-    setStatus("Oppdaterer 3D-visning (fjerner Z-fighting og fargelegger endringer)...", "warn");
+    setStatus("Oppdaterer 3D-visning (fjerner duplikater og fargelegger endringer)...", "warn");
 
     const oldHideIds = [];
     const oldDeletedIds = [];
@@ -1170,23 +1272,17 @@
     const r = diffResults[idx];
     if (!r || !API) return;
 
-    // Oppdater og zoom i Split-Screen til det valgte objektet
     zoomToSelectedInSplit();
 
     const compareBoth = document.getElementById("chkComparePairIn3D").checked;
-
-    // Velg primærobjektet som faktisk skal MARKERES (blått utvalg i Trimble Connect)
-    // Kun ETT objekt markeres av gangen!
     const primaryTarget = r.newObj || r.oldObj;
     const singleSelectionPayload = [
       { modelId: String(primaryTarget.modelId), objectRuntimeIds: [primaryTarget.runtimeId] }
     ];
 
-    // Sjekk at det valgte objektet er synlig i 3D
     await sendStateInChunks(primaryTarget.modelId, primaryTarget.targetIds, { visible: "reset" });
 
-    // Hvis brukeren har huket av "Vis både Gammel + Ny ved klikk", gjør vi den gamle synlig i rødt uten å velge hele modellen
-    if (compareBoth && r.oldObj && r.newObj && r.status !== "UNCHANGED") {
+    if (compareBoth && r.oldObj && r.newObj) {
       await sendStateInChunks(r.oldObj.modelId, r.oldObj.targetIds, { visible: "reset", color: "#DC2626" });
       await sendStateInChunks(r.newObj.modelId, r.newObj.targetIds, { visible: "reset", color: "#16A34A" });
     }
@@ -1203,7 +1299,7 @@
     }
   }
 
-  // --- 6. FORBEDRET SPLIT-SCREEN (VISER HELE KONTEKSTEN + DETALJERT BOKS-DIFF) ---
+  // --- 6. SPLIT-SCREEN (VISER KONTEKST + DETALJERT BOKS-DIFF) ---
   let splitCam = { cx: 0, cy: 0, zoom: 1, dragging: false, lastX: 0, lastY: 0 };
 
   function toggleSplitPanel() {
@@ -1222,12 +1318,13 @@
     if (diffResults.length === 0) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const r of diffResults) {
-      const o = r.newObj || r.oldObj;
-      if (!o) continue;
-      if (o.bbox.min.x < minX) minX = o.bbox.min.x;
-      if (o.bbox.min.y < minY) minY = o.bbox.min.y;
-      if (o.bbox.max.x > maxX) maxX = o.bbox.max.x;
-      if (o.bbox.max.y > maxY) maxY = o.bbox.max.y;
+      [r.oldObj, r.newObj].forEach(o => {
+        if (!o) return;
+        if (o.bbox.min.x < minX) minX = o.bbox.min.x;
+        if (o.bbox.min.y < minY) minY = o.bbox.min.y;
+        if (o.bbox.max.x > maxX) maxX = o.bbox.max.x;
+        if (o.bbox.max.y > maxY) maxY = o.bbox.max.y;
+      });
     }
     if (!isFinite(minX)) return;
     const cOld = document.getElementById("canvasOld");
@@ -1280,7 +1377,6 @@
     document.getElementById("tagOldCanvas").textContent = "Gammel: " + (oldSel.options[oldSel.selectedIndex]?.text || "");
     document.getElementById("tagNewCanvas").textContent = "Ny: " + (newSel.options[newSel.selectedIndex]?.text || "");
 
-    // Oppdater målinformasjon nederst i Split-Screen hvis et objekt er valgt
     if (selectedRowIdx >= 0 && diffResults[selectedRowIdx]) {
       const r = diffResults[selectedRowIdx];
       const o = r.oldObj;
@@ -1306,7 +1402,6 @@
     const toScreenX = (x) => (x - splitCam.cx) * splitCam.zoom + w / 2;
     const toScreenY = (y) => h / 2 - (y - splitCam.cy) * splitCam.zoom;
 
-    // 1. Tegn ALLE objekter svakt i bakgrunnen som kontekstkart (slik at du ser hele veglinjen, ikke bare 1 boks)
     diffResults.forEach((r, idx) => {
       const obj = isOldSide ? r.oldObj : r.newObj;
       if (!obj || idx === selectedRowIdx) return;
@@ -1323,7 +1418,6 @@
       ctx.fillRect(x1, y1, rw, rh);
       ctx.strokeRect(x1, y1, rw, rh);
 
-      // Tegn senterpunkt-prikk for aktive objekter
       if (isActiveCat) {
         const cx = toScreenX(obj.center.x);
         const cy = toScreenY(obj.center.y);
@@ -1334,13 +1428,11 @@
       }
     });
 
-    // 2. Uthev det VALGTE objektet (med stiplet spøkelsesboks for Gammel inne på Ny-siden så man ser forskjellen!)
     if (selectedRowIdx >= 0 && diffResults[selectedRowIdx]) {
       const r = diffResults[selectedRowIdx];
       const o = r.oldObj;
       const n = r.newObj;
 
-      // På Ny-siden: Tegn Gammel boks som stiplet rød referanse først
       if (!isOldSide && o) {
         const ox = toScreenX(o.bbox.min.x);
         const oy = toScreenY(o.bbox.max.y);
@@ -1367,7 +1459,6 @@
         ctx.fillRect(x1, y1, rw, rh);
         ctx.strokeRect(x1, y1, rw, rh);
 
-        // Tegn senterpunkt + diagonal
         const cx = toScreenX(mainObj.center.x);
         const cy = toScreenY(mainObj.center.y);
         ctx.fillStyle = "#0f172a";
@@ -1404,11 +1495,11 @@
     }, { passive: false });
   });
 
-  // --- 7. EKSPORTER CSV (GUID-BRO OG ENDRINGSRAPPORT) ---
+  // --- 7. EKSPORTER CSV ---
   function exportGuidMappingCsv() {
     if (diffResults.length === 0) return;
     const rows = [
-      ["Status", "Gammel_GUID", "Ny_GUID", "GUID_Endret", "IFC_Klasse", "Objektnavn", "Avvik_Senter_mm", "Avvik_Dimensjon_mm", "Endrede_Egenskaper"]
+      ["Status", "Gammel_GUID", "Ny_GUID", "GUID_Endret", "IFC_Klasse", "Objektnavn", "Flyttet_Senter_mm", "Avvik_Størrelse_mm", "Endrede_Egenskaper"]
     ];
 
     for (const r of diffResults) {
