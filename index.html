@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BIM Revisjons- og Endringskontroll v1.1</title>
+  <title>BIM Revisjons- og Endringskontroll v1.2</title>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
     :root {
@@ -110,7 +110,7 @@
 
     /* SPLIT SCREEN 2D DIFF CANVAS */
     .split-panel {
-      display: none; height: 240px; background: var(--card); border: 1px solid var(--border);
+      display: none; height: 245px; background: var(--card); border: 1px solid var(--border);
       border-radius: 7px; overflow: hidden; flex-shrink: 0; flex-direction: column;
     }
     .split-panel.open { display: flex; }
@@ -122,8 +122,12 @@
     .canvas-box { position: relative; width: 100%; height: 100%; border-right: 1px solid var(--border); background: #f8fafc; }
     .canvas-box:last-child { border-right: none; }
     .canvas-tag {
-      position: absolute; top: 8px; left: 8px; background: rgba(255,255,255,0.9);
+      position: absolute; top: 8px; left: 8px; background: rgba(255,255,255,0.92);
       padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 700; pointer-events: none;
+    }
+    .canvas-legend {
+      position: absolute; bottom: 8px; left: 8px; background: rgba(255,255,255,0.92);
+      padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); font-size: 10px; color: var(--muted); pointer-events: none;
     }
     canvas { width: 100%; height: 100%; display: block; cursor: grab; }
     canvas:active { cursor: grabbing; }
@@ -159,8 +163,21 @@
     .b-DELETED { background: var(--deleted-bg); color: var(--deleted); }
 
     .guid-pair { font-family: monospace; font-size: 11px; color: #334155; }
-    .diff-detail { font-size: 11px; color: #475569; line-height: 1.35; }
+    .diff-detail { font-size: 11px; color: #475569; line-height: 1.45; }
     .diff-detail b { color: #0f172a; }
+
+    /* UTVIDBAR EGENSKAPSLISTE */
+    .prop-expand-btn {
+      margin-top: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;
+      color: var(--primary); background: #eff6ff; border: 1px solid #bfdbfe;
+      border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .prop-expand-btn:hover { background: #dbeafe; }
+    .extra-props-box {
+      display: none; margin-top: 6px; padding-top: 6px;
+      border-top: 1px dashed #cbd5e1;
+    }
+    .extra-props-box.open { display: block; }
 
     @media (max-width: 900px) {
       .cards-grid { grid-template-columns: repeat(3, 1fr); }
@@ -176,7 +193,7 @@
         <img src="norconsult-logo-black.png" alt="Norconsult" onerror="this.style.display='none'; this.parentElement.innerHTML='<b>NORCONSULT</b>'" />
       </div>
       <div class="app-title">
-        <b>BIM Revisjons- og Endringskontroll <span class="version-badge">v1.1</span></b>
+        <b>BIM Revisjons- og Endringskontroll <span class="version-badge">v1.2</span></b>
         <span>Geometrisk objekt-matching på tvers av utskiftede GUID-er (ignorerer revisjonsegenskaper)</span>
       </div>
     </div>
@@ -220,12 +237,12 @@
     <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase;">3D-Visning:</span>
     <button id="btnSmart3D" onclick="applySmart3DView()" disabled title="Skjuler duplikater fra Gammel modell, fargelegger Nye (Grønn), Endrede (Gul/Blå) og viser Slettede (Rød)">🎨 Smart Endringsvisning i 3D</button>
     <button id="btnBlink" onclick="toggleBlinkMode()" disabled title="Veksler lynraskt mellom kun Gammel modell og kun Ny modell i 3D">🔀 Veksle: <span id="blinkLabel">Gammel ↔ Ny</span></button>
-    <button id="btnSplitScreen" onclick="toggleSplitPanel()" disabled>🪟 Split-Screen (2D Plan Diff)</button>
+    <button id="btnSplitScreen" onclick="toggleSplitPanel()" disabled>🪟 Split-Screen (Geometrisk Boks-Diff)</button>
     <button id="btnReset3D" onclick="reset3DView()" disabled>↺ Nullstill 3D</button>
 
-    <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-      <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;" title="Når du klikker på et endret objekt i tabellen, vises både gammel (Rød) og ny (Grønn) form samtidig i 3D">
-        <input type="checkbox" id="chkComparePairIn3D" checked /> Vis Gammel (Rød) + Ny (Grønn) ved klikk
+    <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+      <label style="display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;" title="Når du klikker på et endret objekt i tabellen, gjøres også gammel versjon synlig (i rødt) ved siden av ny (i grønt), men kun det valgte objektet markeres.">
+        <input type="checkbox" id="chkComparePairIn3D" /> Vis både Gammel (Rød) + Ny (Grønn) ved klikk
       </label>
       <button id="btnExportCsv" onclick="exportGuidMappingCsv()" disabled>📥 Eksporter GUID-bro & Diff (.CSV)</button>
     </div>
@@ -270,17 +287,22 @@
     <!-- SPLIT SCREEN 2D PLAN VIEWER -->
     <div id="splitPanel" class="split-panel">
       <div class="split-header">
-        <span>🪟 Synkronisert Split-Screen (2D Plan BoundingBoxes) – Skroll for zoom, dra for panorering, klikk for 3D-fokus</span>
-        <button onclick="fitSplitView()" style="padding:2px 8px; font-size:11px;">⛶ Tilpass utsnitt</button>
+        <span>🪟 Synkronisert Split-Screen (Viser hele modellens kontekst + uthever Gammel vs. Ny utstrekning på valgt objekt)</span>
+        <div style="display:flex; gap:6px;">
+          <button onclick="zoomToSelectedInSplit()" style="padding:2px 8px; font-size:11px;">🎯 Zoom til valgt objekt</button>
+          <button onclick="fitSplitView()" style="padding:2px 8px; font-size:11px;">⛶ Vis hele modellen</button>
+        </div>
       </div>
       <div class="split-canvases">
         <div class="canvas-box">
           <canvas id="canvasOld"></canvas>
           <div class="canvas-tag" id="tagOldCanvas">Gammel modell</div>
+          <div class="canvas-legend" id="infoOldCanvas">Klikk på et objekt i tabellen for detaljer</div>
         </div>
         <div class="canvas-box">
           <canvas id="canvasNew"></canvas>
           <div class="canvas-tag" id="tagNewCanvas">Ny modell</div>
+          <div class="canvas-legend" id="infoNewCanvas">Stiplet rød = Gammel boks | Heltrukket = Ny boks</div>
         </div>
       </div>
     </div>
@@ -288,8 +310,8 @@
     <!-- RESULTATTABELL -->
     <div class="table-card">
       <div class="table-toolbar">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <input type="text" id="inpSearch" placeholder="🔍 Søk på navn, objekttype, prosesskode, gammel/ny GUID..." style="min-width:320px;" oninput="renderTable()" />
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <input type="text" id="inpSearch" placeholder="🔍 Søk på navn, objekttype, prosesskode, egenskap eller GUID..." style="min-width:300px;" oninput="renderTable()" />
           <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer;">
             <input type="checkbox" id="chkOnlyNewGuids" onchange="renderTable()" /> Kun objekter som har byttet GUID
           </label>
@@ -333,13 +355,21 @@
     "IFCPROJECT", "IFCBUILDING", "IFCBUILDINGSTOREY", "IFCSPACE", "IFCOPENINGELEMENT"
   ]);
 
-  // Viktige egenskaper vi sjekker for identitet og endringer
+  // Viktige egenskaper vi prioriterer øverst i visningen
   const KEY_PROPS = [
     "NAME", "OBJEKTTYPE", "OBJECTTYPE", "PROSESSKODE", "PROSESS", "PNS KODE", "PNS",
     "MMI", "MATERIALE", "MATERIAL", "UNDERDISIPLIN", "BRUKSSTATUS", "BESKRIVELSE", "DESCRIPTION"
   ];
 
-  // Sjekker om en egenskap skal ekskluderes fra sammenligningen (f.eks. alt som inneholder "revisjon" eller "revision")
+  function escapeHTML(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // Sjekker om en egenskap skal ekskluderes fra sammenligningen (alt som inneholder "revisjon" eller "revision")
   function isIgnoredPropertyKey(keyUpper) {
     if (!keyUpper) return true;
     if (keyUpper === "GLOBALID" || keyUpper === "GUID") return true;
@@ -399,11 +429,10 @@
         }
       } catch (e) { console.warn("API.models.getModels feilet:", e); }
 
-      // 2) Prøv API.viewer.getModels() (for korte runtime modelId-er)
-      let viewerModels = [];
+      // 2) Prøv API.viewer.getModels()
       try {
         if (API.viewer && typeof API.viewer.getModels === "function") {
-          viewerModels = await API.viewer.getModels() || [];
+          const viewerModels = await API.viewer.getModels() || [];
           viewerModels.forEach(m => {
             const id = String(m.id || m.modelId || "");
             const nm = m.name || m.fileName || m.title || (m.file && m.file.name) || "";
@@ -412,7 +441,7 @@
         }
       } catch (e) { console.warn("API.viewer.getModels feilet:", e); }
 
-      // 3) Hent objekthierarkiet fra vieweren for å garantere at vi kun lister lastede modeller
+      // 3) Hent objekthierarkiet fra vieweren
       const objTrees = await API.viewer.getObjects() || [];
       availableModels = [];
 
@@ -420,7 +449,6 @@
         const mid = String(tree.modelId || tree.id || "");
         if (!mid) return;
         let mName = nameMap[mid] || tree.name || "";
-        // Fallback til øverste rotnode i treet
         if (!mName && Array.isArray(tree.objects) && tree.objects.length > 0) {
           mName = tree.objects[0].name || "";
         }
@@ -455,7 +483,7 @@
       return;
     }
 
-    availableModels.forEach((m, i) => {
+    availableModels.forEach((m) => {
       const opt1 = document.createElement("option");
       opt1.value = m.id;
       opt1.textContent = m.name;
@@ -467,7 +495,6 @@
       selNew.appendChild(opt2);
     });
 
-    // Velg automatisk modell 1 som Gammel og modell 2 som Ny hvis minst 2 finnes
     if (availableModels.length >= 2) {
       selOld.selectedIndex = 0;
       selNew.selectedIndex = 1;
@@ -481,7 +508,6 @@
     const trees = modelEntry && modelEntry.tree ? [modelEntry.tree] : await API.viewer.getObjects({ modelId });
     const rootObjs = (trees && trees[0] && trees[0].objects) ? trees[0].objects : [];
 
-    // Bygg slektstre (parentMap) og finn alle noder
     const nodeMap = new Map();
     const parentMap = new Map();
 
@@ -507,7 +533,7 @@
     const allIds = Array.from(nodeMap.keys());
     if (allIds.length === 0) return [];
 
-    // 2A. Hent egenskaper i bolker (chunks)
+    // 2A. Hent egenskaper i bolker
     const rawPropsMap = new Map();
     const PROP_CHUNK = 200;
     for (let i = 0; i < allIds.length; i += PROP_CHUNK) {
@@ -536,7 +562,6 @@
                   guid = guid || v;
                   continue;
                 }
-                // Ignorer alle egenskaper som inneholder "revisjon" eller "revision"
                 if (isIgnoredPropertyKey(k)) continue;
                 dict[k] = v;
               }
@@ -566,7 +591,6 @@
             const rid = b.id !== undefined ? b.id : (b.runtimeId !== undefined ? b.runtimeId : slice[idx]);
             const box = b.boundingBox || b.box || b;
             if (box && box.min && box.max && isFinite(box.min.x) && isFinite(box.max.x)) {
-              // Sjekk at boksen har reell utstrekning
               const dx = Math.abs(box.max.x - box.min.x);
               const dy = Math.abs(box.max.y - box.min.y);
               const dz = Math.abs(box.max.z - box.min.z);
@@ -582,8 +606,7 @@
       }
     }
 
-    // 2C. Klatre i slektstreet (opp til 50 nivåer) for å arve egenskaper på geometrinoder,
-    // og samle fysiske objekter med gyldig Bounding Box
+    // 2C. Klatre oppover kun for å arve manglende egenskaper (MEN IKKE ta med foreldre-ID i targetIds!)
     function getInheritedData(rid) {
       const mergedProps = {};
       let guid = "";
@@ -600,9 +623,12 @@
           if (!ifcClass && node.ifcClass && !IGNORE_CLASSES.has(node.ifcClass)) ifcClass = node.ifcClass;
         }
         if (rp) {
-          if (!guid && rp.guid) guid = rp.guid;
+          // Kun bruk forelderens GUID hvis barnet er en ren geometrinode uten egen GUID
+          if (!guid && rp.guid && depth <= 1) guid = rp.guid;
           if (!ifcClass && rp.ifcClass && !IGNORE_CLASSES.has(rp.ifcClass)) ifcClass = rp.ifcClass;
+          // Ikke arv NAME fra selve topp/modell-rotnoden hvis objektet allerede har navn
           for (const [k, v] of Object.entries(rp.props)) {
+            if (k === "NAME" && depth > 1) continue;
             if (mergedProps[k] === undefined && v !== "") mergedProps[k] = v;
           }
         }
@@ -613,8 +639,8 @@
       return { guid: guid || `RID-${rid}`, ifcClass: ifcClass || "IFCELEMENT", name: mergedProps["NAME"] || `Objekt #${rid}`, props: mergedProps };
     }
 
-    // Finn alle under-IDer for et objekt (slik at både forelder og geometrinoder skjules/farges i 3D)
-    function collectAllDescendantIds(rid) {
+    // Viktig: Samle kun selve objektet og dets egne under-geometrinoder (aldri foreldre/modell-rot!)
+    function collectOwnAndChildIds(rid) {
       const result = [rid];
       const stack = [rid];
       while (stack.length > 0) {
@@ -632,12 +658,13 @@
 
     const physicalObjects = [];
     for (const [rid, node] of nodeMap.entries()) {
+      // Hopp over øverste rotnode (selve fil-containeren) så vi aldri skjuler/markerer hele modellen under ett
+      if (!parentMap.has(rid) && node.hasChildren) continue;
       if (IGNORE_CLASSES.has(node.ifcClass)) continue;
+
       const bbox = bboxMap.get(rid);
       if (!bbox) continue;
 
-      // Hvis en forelder-node har barn som OGSÅ har egne bounding boxes, unngå dobbelttelling
-      // ved å prioritere noden som enten er en løvnode eller har egen GUID.
       if (node.hasChildren) {
         const childHasBbox = node.childIds.some(cid => bboxMap.has(cid));
         if (childHasBbox) continue;
@@ -656,19 +683,10 @@
       const dz = Math.abs(max.z - min.z);
       const diag = Math.hypot(dx, dy, dz);
 
-      const pid = parentMap.get(rid);
-      const targetIds = new Set(collectAllDescendantIds(rid));
-      if (pid !== undefined && pid !== null) {
-        const pNode = nodeMap.get(pid);
-        if (pNode && !IGNORE_CLASSES.has(pNode.ifcClass) && pNode.childIds.length === 1) {
-          targetIds.add(pid);
-        }
-      }
-
       physicalObjects.push({
         modelId,
         runtimeId: rid,
-        targetIds: Array.from(targetIds),
+        targetIds: collectOwnAndChildIds(rid),
         guid: inherited.guid,
         name: inherited.name,
         ifcClass: inherited.ifcClass,
@@ -699,6 +717,7 @@
     const searchRadMeters = parseFloat(document.getElementById("inpSearchRad").value) || 2.5;
 
     document.getElementById("btnRunDiff").disabled = true;
+    selectedRowIdx = -1;
     setProgress(2);
 
     try {
@@ -713,11 +732,9 @@
       const usedNew = new Set();
       diffResults = [];
 
-      // Hjelpefunksjon: Avstand mellom to 3D-punkter
       const dist3D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
       const dimDiff = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z));
 
-      // Hjelpefunksjon: Sammenlign sentrale egenskaper mellom Gammel og Ny (ekskl. revisjonsegenskaper)
       function compareProperties(o1, o2) {
         const changes = [];
         const allKeys = new Set([...Object.keys(o1.props), ...Object.keys(o2.props)]);
@@ -726,15 +743,19 @@
           const v1 = o1.props[k] || "";
           const v2 = o2.props[k] || "";
           if (v1 !== v2) {
-            // Prioriter visning av viktige egenskaper
-            changes.push({ key: k, oldVal: v1 || "(tom)", newVal: v2 || "(tom)", priority: KEY_PROPS.includes(k) ? 1 : 2 });
+            changes.push({
+              key: k,
+              oldVal: v1 || "(tom)",
+              newVal: v2 || "(tom)",
+              priority: KEY_PROPS.includes(k) ? 1 : 2
+            });
           }
         }
-        changes.sort((a, b) => a.priority - b.priority);
+        changes.sort((a, b) => a.priority - b.priority || a.key.localeCompare(b.key));
         return changes;
       }
 
-      // STEG 1: Eksakt Geometrisk & Romlig match (uavhengig av GUID!)
+      // STEG 1: Eksakt Geometrisk & Romlig match (uavhengig av GUID)
       for (let j = 0; j < newObjs.length; j++) {
         const nObj = newObjs[j];
         let bestOldIdx = -1;
@@ -751,7 +772,6 @@
           const dDiff = dimDiff(oObj.dims, nObj.dims);
           if (dDiff > exactTolMeters) continue;
 
-          // Hvis flere objekter ligger kliss likt (f.eks. lagdelte flater), foretrekk likt navn/objekttype
           const sameNamePenalty = (oObj.name === nObj.name) ? 0 : 0.002;
           const score = cDist + dDiff + sameNamePenalty;
           if (score < bestScore) {
@@ -780,7 +800,7 @@
         }
       }
 
-      // STEG 2: Modifisert Geometri (Samme objekt, men flyttet litt eller endret lengde/form)
+      // STEG 2: Modifisert Geometri
       for (let j = 0; j < newObjs.length; j++) {
         if (usedNew.has(j)) continue;
         const nObj = newObjs[j];
@@ -793,7 +813,6 @@
           if (oObj.ifcClass !== nObj.ifcClass) continue;
 
           const cDist = dist3D(oObj.center, nObj.center);
-          // Sjekk også om BoundingBoxene faktisk overlapper i 3D
           const overlaps = (
             oObj.bbox.min.x <= nObj.bbox.max.x && oObj.bbox.max.x >= nObj.bbox.min.x &&
             oObj.bbox.min.y <= nObj.bbox.max.y && oObj.bbox.max.y >= nObj.bbox.min.y &&
@@ -802,7 +821,6 @@
 
           if (cDist > searchRadMeters && !overlaps) continue;
 
-          // Vurder likhet i navn/objekttype/prosesskode
           const sameName = (oObj.name && oObj.name === nObj.name);
           const sameType = (oObj.props["OBJEKTTYPE"] && oObj.props["OBJEKTTYPE"] === nObj.props["OBJEKTTYPE"]);
           const sameGuid = (oObj.guid && oObj.guid === nObj.guid);
@@ -839,14 +857,13 @@
         }
       }
 
-      // STEG 3: Nye objekter (Kun i ny modell)
+      // STEG 3: Nye objekter
       for (let j = 0; j < newObjs.length; j++) {
         if (usedNew.has(j)) continue;
-        const nObj = newObjs[j];
         diffResults.push({
           status: "ADDED",
           oldObj: null,
-          newObj: nObj,
+          newObj: newObjs[j],
           guidChanged: true,
           cDistMm: null,
           dDiffMm: null,
@@ -854,13 +871,12 @@
         });
       }
 
-      // STEG 4: Slettede objekter (Kun i gammel modell)
+      // STEG 4: Slettede objekter
       for (let i = 0; i < oldObjs.length; i++) {
         if (usedOld.has(i)) continue;
-        const oObj = oldObjs[i];
         diffResults.push({
           status: "DELETED",
-          oldObj: oObj,
+          oldObj: oldObjs[i],
           newObj: null,
           guidChanged: false,
           cDistMm: null,
@@ -879,7 +895,6 @@
       document.getElementById("btnReset3D").disabled = false;
       document.getElementById("btnExportCsv").disabled = false;
 
-      // Aktiver Smart 3D-endringsvisning automatisk etter analyse
       await applySmart3DView();
 
       setProgress(-1);
@@ -893,7 +908,7 @@
     }
   }
 
-  // --- 4. OPPDATER TELLERE & TABELL ---
+  // --- 4. OPPDATER TELLERE & TABELL (MED UTVIDBARE EGENSKAPER) ---
   function updateSummaryCounts() {
     const counts = { ALL: diffResults.length, UNCHANGED: 0, MOD_GEOM: 0, MOD_PROP: 0, ADDED: 0, DELETED: 0 };
     for (const r of diffResults) {
@@ -927,8 +942,25 @@
       const cls = ((r.newObj && r.newObj.ifcClass) || (r.oldObj && r.oldObj.ifcClass) || "").toLocaleUpperCase('nb-NO');
       const gOld = (r.oldObj ? r.oldObj.guid : "").toLocaleUpperCase('nb-NO');
       const gNew = (r.newObj ? r.newObj.guid : "").toLocaleUpperCase('nb-NO');
-      return name.includes(q) || cls.includes(q) || gOld.includes(q) || gNew.includes(q);
+      const propMatch = (r.propChanges || []).some(c =>
+        c.key.toLocaleUpperCase('nb-NO').includes(q) ||
+        c.oldVal.toLocaleUpperCase('nb-NO').includes(q) ||
+        c.newVal.toLocaleUpperCase('nb-NO').includes(q)
+      );
+      return name.includes(q) || cls.includes(q) || gOld.includes(q) || gNew.includes(q) || propMatch;
     });
+  }
+
+  // Åpne/lukke "+X andre egenskaper" uten å trigge rad-klikk i 3D
+  function toggleExtraProps(ev, globalIdx, extraCount) {
+    ev.stopPropagation();
+    const box = document.getElementById(`extra-props-${globalIdx}`);
+    const btn = document.getElementById(`extra-btn-${globalIdx}`);
+    if (!box || !btn) return;
+    const isOpen = box.classList.toggle("open");
+    btn.innerHTML = isOpen
+      ? `➖ Skjul ${extraCount} ekstra egenskaper`
+      : `➕ Vis +${extraCount} andre egenskaper`;
   }
 
   const STATUS_LABELS = {
@@ -949,19 +981,19 @@
       return;
     }
 
-    // Begrens DOM-rader til 500 for lynrask scrolling
     const maxRows = 500;
     const slice = filtered.slice(0, maxRows);
 
-    tbody.innerHTML = slice.map((r, idx) => {
+    tbody.innerHTML = slice.map((r) => {
+      const globalIdx = diffResults.indexOf(r);
       const obj = r.newObj || r.oldObj;
       const gOld = r.oldObj ? r.oldObj.guid : "—";
       const gNew = r.newObj ? r.newObj.guid : "—";
       const guidTag = (r.oldObj && r.newObj)
         ? (r.guidChanged
-            ? `<span class="guid-pair" title="Ny GUID oppdaget!">${gOld.substring(0, 10)}… ➔ <b>${gNew.substring(0, 10)}…</b> 🔄</span>`
-            : `<span class="guid-pair" style="color:var(--muted)">${gNew.substring(0, 14)}… (Uendret GUID)</span>`)
-        : `<span class="guid-pair">${(gNew !== "—" ? gNew : gOld).substring(0, 16)}…</span>`;
+            ? `<span class="guid-pair" title="Gammel: ${escapeHTML(gOld)} &#10;Ny: ${escapeHTML(gNew)}">${escapeHTML(gOld.substring(0, 10))}… ➔ <b>${escapeHTML(gNew.substring(0, 10))}…</b> 🔄</span>`
+            : `<span class="guid-pair" style="color:var(--muted)">${escapeHTML(gNew.substring(0, 14))}… (Uendret GUID)</span>`)
+        : `<span class="guid-pair">${escapeHTML((gNew !== "—" ? gNew : gOld).substring(0, 16))}…</span>`;
 
       let geomText = "—";
       if (r.oldObj && r.newObj) {
@@ -976,17 +1008,33 @@
       } else if (r.status === "DELETED") {
         propText = `<span style="color:var(--deleted)">Fjernet i ny modell (vises fra gammel modell)</span>`;
       } else if (r.propChanges && r.propChanges.length > 0) {
-        propText = r.propChanges.slice(0, 3).map(c => `<b>${c.key}:</b> ${c.oldVal} ➔ ${c.newVal}`).join("<br/>");
-        if (r.propChanges.length > 3) propText += `<br/><i>+${r.propChanges.length - 3} andre egenskaper</i>`;
+        const firstThree = r.propChanges.slice(0, 3)
+          .map(c => `<b>${escapeHTML(c.key)}:</b> ${escapeHTML(c.oldVal)} ➔ ${escapeHTML(c.newVal)}`)
+          .join("<br/>");
+        propText = firstThree;
+
+        if (r.propChanges.length > 3) {
+          const rest = r.propChanges.slice(3);
+          const restHtml = rest
+            .map(c => `<b>${escapeHTML(c.key)}:</b> ${escapeHTML(c.oldVal)} ➔ ${escapeHTML(c.newVal)}`)
+            .join("<br/>");
+          propText += `
+            <div id="extra-props-${globalIdx}" class="extra-props-box">${restHtml}</div>
+            <div>
+              <button type="button" id="extra-btn-${globalIdx}" class="prop-expand-btn" onclick="toggleExtraProps(event, ${globalIdx}, ${rest.length})">
+                ➕ Vis +${rest.length} andre egenskaper
+              </button>
+            </div>`;
+        }
       } else {
         propText = `Geometri endret uten tekstendring`;
       }
 
-      const globalIdx = diffResults.indexOf(r);
-      return `<tr onclick="focusDiffRow(${globalIdx}, this)">
+      const rowClass = globalIdx === selectedRowIdx ? "selected-row" : "";
+      return `<tr class="${rowClass}" onclick="focusDiffRow(${globalIdx}, this)">
         <td><span class="badge b-${r.status}">${STATUS_LABELS[r.status]}</span></td>
-        <td><b>${obj.name || "Uten navn"}</b></td>
-        <td>${obj.ifcClass}</td>
+        <td><b>${escapeHTML(obj.name || "Uten navn")}</b></td>
+        <td>${escapeHTML(obj.ifcClass)}</td>
         <td>${guidTag}</td>
         <td class="diff-detail">${geomText}</td>
         <td class="diff-detail">${propText}</td>
@@ -994,7 +1042,7 @@
     }).join("");
   }
 
-  // --- 5. ROBUST 3D-SYNLIGHET & FARGELEGGING (CHUNKING + SEPARATE KALL) ---
+  // --- 5. ROBUST 3D-SYNLIGHET & FARGELEGGING ---
   async function sendStateInChunks(modelId, runtimeIds, stateObj) {
     if (!modelId || !runtimeIds || runtimeIds.length === 0) return;
     const CHUNK = 400;
@@ -1002,13 +1050,11 @@
       const part = runtimeIds.slice(i, i + CHUNK);
       const payload = [{ modelId: String(modelId), objectRuntimeIds: part }];
 
-      // 1) Synlighet separat
       if (stateObj.visible !== undefined) {
         try {
           await API.viewer.setObjectState(payload, { visible: stateObj.visible });
         } catch (e) { console.error("Synlighetsfeil:", e); }
       }
-      // 2) Farge separat (så ikke synlighet avbrytes hvis farge-API hikker)
       if (stateObj.color !== undefined) {
         try {
           await API.viewer.setObjectState(payload, { color: stateObj.color });
@@ -1040,7 +1086,6 @@
       if (r.status === "DELETED" && r.oldObj) {
         oldDeletedIds.push(...r.oldObj.targetIds);
       } else if (r.oldObj) {
-        // Skjul matchede objekter i Gammel modell så de ikke flimrer oppå Ny modell
         oldHideIds.push(...r.oldObj.targetIds);
       }
 
@@ -1052,20 +1097,17 @@
       }
     }
 
-    // 1. Gammel modell: Skjul uendrede/matchede, vis Slettede i RØDT
     await sendStateInChunks(oldModelId, oldHideIds, { visible: false });
     await sendStateInChunks(oldModelId, oldDeletedIds, { visible: "reset", color: "#DC2626" });
 
-    // 2. Ny modell: Vis Uendrede i naturlig farge (reset), og fargelegg endringer
     await sendStateInChunks(newModelId, newUnchangedIds, { visible: "reset", color: null });
-    await sendStateInChunks(newModelId, newGeomIds, { visible: "reset", color: "#F59E0B" }); // Gul/Oransje
-    await sendStateInChunks(newModelId, newPropIds, { visible: "reset", color: "#2563EB" }); // Blå
-    await sendStateInChunks(newModelId, newAddedIds, { visible: "reset", color: "#16A34A" }); // Grønn
+    await sendStateInChunks(newModelId, newGeomIds, { visible: "reset", color: "#F59E0B" });
+    await sendStateInChunks(newModelId, newPropIds, { visible: "reset", color: "#2563EB" });
+    await sendStateInChunks(newModelId, newAddedIds, { visible: "reset", color: "#16A34A" });
 
     setStatus("Smart 3D-endringsvisning aktivert", "live");
   }
 
-  // --- VEKSLE / BLINK MELLOM GAMMEL OG NY MODELL I 3D ---
   async function toggleBlinkMode() {
     if (!API || diffResults.length === 0) return;
     const oldModelId = document.getElementById("selOldModel").value;
@@ -1119,7 +1161,7 @@
     setStatus("3D-visning nullstilt", "live");
   }
 
-  // --- KLIKK PÅ RAD I TABELLEN: VIS GAMMEL + NY I 3D & ZOOM ---
+  // --- KLIKK PÅ RAD I TABELLEN: MARKER KUN DET VALGTE OBJEKTET ---
   async function focusDiffRow(idx, trEl) {
     selectedRowIdx = idx;
     document.querySelectorAll("#diffTableBody tr").forEach(tr => tr.classList.remove("selected-row"));
@@ -1128,37 +1170,40 @@
     const r = diffResults[idx];
     if (!r || !API) return;
 
-    drawSplitCanvases();
+    // Oppdater og zoom i Split-Screen til det valgte objektet
+    zoomToSelectedInSplit();
 
     const compareBoth = document.getElementById("chkComparePairIn3D").checked;
-    const selPayload = [];
 
+    // Velg primærobjektet som faktisk skal MARKERES (blått utvalg i Trimble Connect)
+    // Kun ETT objekt markeres av gangen!
+    const primaryTarget = r.newObj || r.oldObj;
+    const singleSelectionPayload = [
+      { modelId: String(primaryTarget.modelId), objectRuntimeIds: [primaryTarget.runtimeId] }
+    ];
+
+    // Sjekk at det valgte objektet er synlig i 3D
+    await sendStateInChunks(primaryTarget.modelId, primaryTarget.targetIds, { visible: "reset" });
+
+    // Hvis brukeren har huket av "Vis både Gammel + Ny ved klikk", gjør vi den gamle synlig i rødt uten å velge hele modellen
     if (compareBoth && r.oldObj && r.newObj && r.status !== "UNCHANGED") {
-      // Skru PÅ både gammel (RØD) og ny (GRØNN) samtidig slik at du ser nøyaktig hvordan formen har endret seg!
       await sendStateInChunks(r.oldObj.modelId, r.oldObj.targetIds, { visible: "reset", color: "#DC2626" });
       await sendStateInChunks(r.newObj.modelId, r.newObj.targetIds, { visible: "reset", color: "#16A34A" });
-      selPayload.push(
-        { modelId: String(r.oldObj.modelId), objectRuntimeIds: [r.oldObj.runtimeId] },
-        { modelId: String(r.newObj.modelId), objectRuntimeIds: [r.newObj.runtimeId] }
-      );
-    } else {
-      const target = r.newObj || r.oldObj;
-      selPayload.push({ modelId: String(target.modelId), objectRuntimeIds: [target.runtimeId] });
     }
 
     try {
       if (typeof API.viewer.setSelection === "function") {
-        await API.viewer.setSelection(selPayload, "set");
+        await API.viewer.setSelection(singleSelectionPayload, "set");
       }
       if (typeof API.viewer.setCamera === "function") {
-        await API.viewer.setCamera({ modelObjectIds: selPayload }, { animationTime: 450 });
+        await API.viewer.setCamera({ modelObjectIds: singleSelectionPayload }, { animationTime: 450 });
       }
     } catch (e) {
-      console.warn("Kunne ikke zoome kamera:", e);
+      console.warn("Kunne ikke markere/zoome kamera:", e);
     }
   }
 
-  // --- 6. SYNKRONISERT SPLIT-SCREEN (2D PLAN DIFF CANVAS) ---
+  // --- 6. FORBEDRET SPLIT-SCREEN (VISER HELE KONTEKSTEN + DETALJERT BOKS-DIFF) ---
   let splitCam = { cx: 0, cy: 0, zoom: 1, dragging: false, lastX: 0, lastY: 0 };
 
   function toggleSplitPanel() {
@@ -1166,7 +1211,10 @@
     p.classList.toggle("open");
     document.getElementById("btnSplitScreen").classList.toggle("active-mode", p.classList.contains("open"));
     if (p.classList.contains("open")) {
-      setTimeout(() => { fitSplitView(); }, 50);
+      setTimeout(() => {
+        if (selectedRowIdx >= 0) zoomToSelectedInSplit();
+        else fitSplitView();
+      }, 50);
     }
   }
 
@@ -1189,7 +1237,35 @@
     splitCam.cy = (minY + maxY) / 2;
     const spanX = Math.max(1, maxX - minX);
     const spanY = Math.max(1, maxY - minY);
-    splitCam.zoom = Math.min(w / spanX, h / spanY) * 0.85;
+    splitCam.zoom = Math.min(w / spanX, h / spanY) * 0.82;
+    drawSplitCanvases();
+  }
+
+  function zoomToSelectedInSplit() {
+    const panel = document.getElementById("splitPanel");
+    if (!panel.classList.contains("open")) return;
+    if (selectedRowIdx < 0 || !diffResults[selectedRowIdx]) {
+      drawSplitCanvases();
+      return;
+    }
+    const r = diffResults[selectedRowIdx];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    [r.oldObj, r.newObj].forEach(o => {
+      if (!o) return;
+      if (o.bbox.min.x < minX) minX = o.bbox.min.x;
+      if (o.bbox.min.y < minY) minY = o.bbox.min.y;
+      if (o.bbox.max.x > maxX) maxX = o.bbox.max.x;
+      if (o.bbox.max.y > maxY) maxY = o.bbox.max.y;
+    });
+    if (!isFinite(minX)) return;
+    const cOld = document.getElementById("canvasOld");
+    const w = cOld.clientWidth || 400;
+    const h = cOld.clientHeight || 200;
+    splitCam.cx = (minX + maxX) / 2;
+    splitCam.cy = (minY + maxY) / 2;
+    const spanX = Math.max(2, maxX - minX);
+    const spanY = Math.max(2, maxY - minY);
+    splitCam.zoom = Math.min(w / spanX, h / spanY) * 0.65;
     drawSplitCanvases();
   }
 
@@ -1204,6 +1280,19 @@
     document.getElementById("tagOldCanvas").textContent = "Gammel: " + (oldSel.options[oldSel.selectedIndex]?.text || "");
     document.getElementById("tagNewCanvas").textContent = "Ny: " + (newSel.options[newSel.selectedIndex]?.text || "");
 
+    // Oppdater målinformasjon nederst i Split-Screen hvis et objekt er valgt
+    if (selectedRowIdx >= 0 && diffResults[selectedRowIdx]) {
+      const r = diffResults[selectedRowIdx];
+      const o = r.oldObj;
+      const n = r.newObj;
+      document.getElementById("infoOldCanvas").textContent = o
+        ? `Utstrekning Gammel: ΔX=${o.dims.x.toFixed(2)}m, ΔY=${o.dims.y.toFixed(2)}m, ΔZ=${o.dims.z.toFixed(2)}m`
+        : "Fantes ikke i Gammel modell";
+      document.getElementById("infoNewCanvas").textContent = n
+        ? `Utstrekning Ny: ΔX=${n.dims.x.toFixed(2)}m, ΔY=${n.dims.y.toFixed(2)}m, ΔZ=${n.dims.z.toFixed(2)}m (Stiplet rød = Gammel)`
+        : "Slettet i Ny modell";
+    }
+
     renderSingleDiffCanvas(cOld, true);
     renderSingleDiffCanvas(cNew, false);
   }
@@ -1214,34 +1303,81 @@
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    const COLORS = {
-      UNCHANGED: { fill: "rgba(148, 163, 184, 0.22)", stroke: "#94a3b8" },
-      MOD_GEOM:  { fill: "rgba(245, 158, 11, 0.45)", stroke: "#d97706" },
-      MOD_PROP:  { fill: "rgba(37, 99, 235, 0.40)",  stroke: "#2563eb" },
-      ADDED:     { fill: "rgba(22, 163, 74, 0.45)",  stroke: "#16a34a" },
-      DELETED:   { fill: "rgba(220, 38, 38, 0.45)",  stroke: "#dc2626" }
-    };
+    const toScreenX = (x) => (x - splitCam.cx) * splitCam.zoom + w / 2;
+    const toScreenY = (y) => h / 2 - (y - splitCam.cy) * splitCam.zoom;
 
+    // 1. Tegn ALLE objekter svakt i bakgrunnen som kontekstkart (slik at du ser hele veglinjen, ikke bare 1 boks)
     diffResults.forEach((r, idx) => {
-      if (activeCategory !== "ALL" && r.status !== activeCategory) return;
       const obj = isOldSide ? r.oldObj : r.newObj;
-      if (!obj) return;
+      if (!obj || idx === selectedRowIdx) return;
 
-      const x1 = (obj.bbox.min.x - splitCam.cx) * splitCam.zoom + w / 2;
-      const y1 = h / 2 - (obj.bbox.max.y - splitCam.cy) * splitCam.zoom;
-      const rw = Math.max(2, (obj.bbox.max.x - obj.bbox.min.x) * splitCam.zoom);
-      const rh = Math.max(2, (obj.bbox.max.y - obj.bbox.min.y) * splitCam.zoom);
+      const x1 = toScreenX(obj.bbox.min.x);
+      const y1 = toScreenY(obj.bbox.max.y);
+      const rw = Math.max(1.5, (obj.bbox.max.x - obj.bbox.min.x) * splitCam.zoom);
+      const rh = Math.max(1.5, (obj.bbox.max.y - obj.bbox.min.y) * splitCam.zoom);
 
-      const style = COLORS[r.status] || COLORS.UNCHANGED;
-      ctx.fillStyle = style.fill;
-      ctx.strokeStyle = idx === selectedRowIdx ? "#0f172a" : style.stroke;
-      ctx.lineWidth = idx === selectedRowIdx ? 2.5 : 1;
+      const isActiveCat = (activeCategory === "ALL" || r.status === activeCategory);
+      ctx.fillStyle = isActiveCat ? "rgba(148, 163, 184, 0.14)" : "rgba(203, 213, 225, 0.06)";
+      ctx.strokeStyle = isActiveCat ? "rgba(100, 116, 139, 0.35)" : "rgba(148, 163, 184, 0.15)";
+      ctx.lineWidth = 1;
       ctx.fillRect(x1, y1, rw, rh);
       ctx.strokeRect(x1, y1, rw, rh);
+
+      // Tegn senterpunkt-prikk for aktive objekter
+      if (isActiveCat) {
+        const cx = toScreenX(obj.center.x);
+        const cy = toScreenY(obj.center.y);
+        ctx.fillStyle = r.status === "MOD_GEOM" ? "#d97706" : (r.status === "ADDED" ? "#16a34a" : (r.status === "DELETED" ? "#dc2626" : "#64748b"));
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     });
+
+    // 2. Uthev det VALGTE objektet (med stiplet spøkelsesboks for Gammel inne på Ny-siden så man ser forskjellen!)
+    if (selectedRowIdx >= 0 && diffResults[selectedRowIdx]) {
+      const r = diffResults[selectedRowIdx];
+      const o = r.oldObj;
+      const n = r.newObj;
+
+      // På Ny-siden: Tegn Gammel boks som stiplet rød referanse først
+      if (!isOldSide && o) {
+        const ox = toScreenX(o.bbox.min.x);
+        const oy = toScreenY(o.bbox.max.y);
+        const orw = Math.max(2, (o.bbox.max.x - o.bbox.min.x) * splitCam.zoom);
+        const orh = Math.max(2, (o.bbox.max.y - o.bbox.min.y) * splitCam.zoom);
+        ctx.save();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = "#dc2626";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(ox, oy, orw, orh);
+        ctx.restore();
+      }
+
+      const mainObj = isOldSide ? o : n;
+      if (mainObj) {
+        const x1 = toScreenX(mainObj.bbox.min.x);
+        const y1 = toScreenY(mainObj.bbox.max.y);
+        const rw = Math.max(3, (mainObj.bbox.max.x - mainObj.bbox.min.x) * splitCam.zoom);
+        const rh = Math.max(3, (mainObj.bbox.max.y - mainObj.bbox.min.y) * splitCam.zoom);
+
+        ctx.fillStyle = isOldSide ? "rgba(220, 38, 38, 0.25)" : "rgba(22, 163, 74, 0.25)";
+        ctx.strokeStyle = isOldSide ? "#dc2626" : "#16a34a";
+        ctx.lineWidth = 2.5;
+        ctx.fillRect(x1, y1, rw, rh);
+        ctx.strokeRect(x1, y1, rw, rh);
+
+        // Tegn senterpunkt + diagonal
+        const cx = toScreenX(mainObj.center.x);
+        const cy = toScreenY(mainObj.center.y);
+        ctx.fillStyle = "#0f172a";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
   }
 
-  // Synkronisert mus-panorering og zoom på begge Split-Screen canvaser
   ["canvasOld", "canvasNew"].forEach(cid => {
     const el = document.getElementById(cid);
     el.addEventListener("mousedown", e => {
@@ -1291,7 +1427,6 @@
       ]);
     }
 
-    // Legg til UTF-8 BOM (\uFEFF) så norske tegn (æ, ø, å) åpnes riktig rett i Excel
     const csvContent = "\uFEFF" + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
