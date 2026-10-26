@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BIM Revisjons- og Endringskontroll v1.0</title>
+  <title>BIM Revisjons- og Endringskontroll v1.1</title>
   <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
   <style>
     :root {
@@ -176,8 +176,8 @@
         <img src="norconsult-logo-black.png" alt="Norconsult" onerror="this.style.display='none'; this.parentElement.innerHTML='<b>NORCONSULT</b>'" />
       </div>
       <div class="app-title">
-        <b>BIM Revisjons- og Endringskontroll <span class="version-badge">v1.0</span></b>
-        <span>Geometrisk objekt-matching på tvers av utskiftede GUID-er (Gammel vs. Ny IFC)</span>
+        <b>BIM Revisjons- og Endringskontroll <span class="version-badge">v1.1</span></b>
+        <span>Geometrisk objekt-matching på tvers av utskiftede GUID-er (ignorerer revisjonsegenskaper)</span>
       </div>
     </div>
     <div class="status-pill">
@@ -338,6 +338,14 @@
     "NAME", "OBJEKTTYPE", "OBJECTTYPE", "PROSESSKODE", "PROSESS", "PNS KODE", "PNS",
     "MMI", "MATERIALE", "MATERIAL", "UNDERDISIPLIN", "BRUKSSTATUS", "BESKRIVELSE", "DESCRIPTION"
   ];
+
+  // Sjekker om en egenskap skal ekskluderes fra sammenligningen (f.eks. alt som inneholder "revisjon" eller "revision")
+  function isIgnoredPropertyKey(keyUpper) {
+    if (!keyUpper) return true;
+    if (keyUpper === "GLOBALID" || keyUpper === "GUID") return true;
+    if (keyUpper.includes("REVISJON") || keyUpper.includes("REVISION")) return true;
+    return false;
+  }
 
   // --- STATUS & PROGRESS ---
   function setStatus(text, type = "live") {
@@ -524,7 +532,12 @@
                 const k = String(prop.name || "").trim().toLocaleUpperCase('nb-NO');
                 const v = prop.value !== undefined && prop.value !== null ? String(prop.value).trim() : "";
                 if (!k || !v) continue;
-                if (k === "GLOBALID" || k === "GUID") guid = guid || v;
+                if (k === "GLOBALID" || k === "GUID") {
+                  guid = guid || v;
+                  continue;
+                }
+                // Ignorer alle egenskaper som inneholder "revisjon" eller "revision"
+                if (isIgnoredPropertyKey(k)) continue;
                 dict[k] = v;
               }
             }
@@ -704,12 +717,12 @@
       const dist3D = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
       const dimDiff = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z));
 
-      // Hjelpefunksjon: Sammenlign sentrale egenskaper mellom Gammel og Ny
+      // Hjelpefunksjon: Sammenlign sentrale egenskaper mellom Gammel og Ny (ekskl. revisjonsegenskaper)
       function compareProperties(o1, o2) {
         const changes = [];
         const allKeys = new Set([...Object.keys(o1.props), ...Object.keys(o2.props)]);
         for (const k of allKeys) {
-          if (k === "GLOBALID" || k === "GUID") continue;
+          if (isIgnoredPropertyKey(k)) continue;
           const v1 = o1.props[k] || "";
           const v2 = o2.props[k] || "";
           if (v1 !== v2) {
