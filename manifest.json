@@ -1,0 +1,7 @@
+{
+  "title": "Revisjonskontroll",
+  "icon": "https://vidmet.github.io/RevControl/qa.png",
+  "url": "https://vidmet.github.io/RevControl/index.html",
+  "description":"Sammenligning av reviderte modeller",
+  "enabled": true
+}
